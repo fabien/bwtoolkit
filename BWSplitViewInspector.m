@@ -193,7 +193,7 @@
 	
 	NSNumber *minUnit = [NSNumber numberWithInt:index];
 	
-	NSMutableDictionary *tempMinUnits = [[splitView minUnits] mutableCopy];
+	NSMutableDictionary *tempMinUnits = [[[splitView minUnits] mutableCopy] autorelease];
 	[tempMinUnits setObject:minUnit forKey:[NSNumber numberWithInt:[self subviewPopupSelection]]];
 	[splitView setMinUnits:tempMinUnits];
 }
@@ -204,7 +204,7 @@
 
 	NSNumber *maxUnit = [NSNumber numberWithInt:index];
 	
-	NSMutableDictionary *tempMaxUnits = [[splitView maxUnits] mutableCopy];
+	NSMutableDictionary *tempMaxUnits = [[[splitView maxUnits] mutableCopy] autorelease];
 	[tempMaxUnits setObject:maxUnit forKey:[NSNumber numberWithInt:[self subviewPopupSelection]]];
 	[splitView setMaxUnits:tempMaxUnits];
 }
@@ -216,13 +216,13 @@
 		if ([minField stringValue] != nil && [[minField stringValue] isEqualToString:@""] == NO && [[minField stringValue] isEqualToString:@" "] == NO)
 		{
 			NSNumber *minValue = [NSNumber numberWithInt:[minField intValue]];
-			NSMutableDictionary *tempMinValues = [[splitView minValues] mutableCopy];
+			NSMutableDictionary *tempMinValues = [[[splitView minValues] mutableCopy] autorelease];
 			[tempMinValues setObject:minValue forKey:[NSNumber numberWithInt:[self subviewPopupSelection]]];
 			[splitView setMinValues:tempMinValues];
 		}
 		else
 		{
-			NSMutableDictionary *tempMinValues = [[splitView minValues] mutableCopy];
+			NSMutableDictionary *tempMinValues = [[[splitView minValues] mutableCopy] autorelease];
 			[tempMinValues removeObjectForKey:[NSNumber numberWithInt:[self subviewPopupSelection]]];
 			[splitView setMinValues:tempMinValues];
 		}
@@ -232,13 +232,13 @@
 		if ([maxField stringValue] != nil && [[maxField stringValue] isEqualToString:@""] == NO && [[maxField stringValue] isEqualToString:@" "] == NO)
 		{
 			NSNumber *maxValue = [NSNumber numberWithInt:[maxField intValue]];
-			NSMutableDictionary *tempMaxValues = [[splitView maxValues] mutableCopy];
+			NSMutableDictionary *tempMaxValues = [[[splitView maxValues] mutableCopy] autorelease];
 			[tempMaxValues setObject:maxValue forKey:[NSNumber numberWithInt:[self subviewPopupSelection]]];
 			[splitView setMaxValues:tempMaxValues];
 		}
 		else
 		{
-			NSMutableDictionary *tempMaxValues = [[splitView maxValues] mutableCopy];
+			NSMutableDictionary *tempMaxValues = [[[splitView maxValues] mutableCopy] autorelease];
 			[tempMaxValues removeObjectForKey:[NSNumber numberWithInt:[self subviewPopupSelection]]];
 			[splitView setMaxValues:tempMaxValues];
 		}
