@@ -2,14 +2,16 @@
 //  BWSheetController.m
 //  BWToolkit
 //
-//  Created by Brandon Walkin on 03/07/08.
-//  Copyright 2008 __MyCompanyName__. All rights reserved.
+//  Created by Brandon Walkin (www.brandonwalkin.com)
+//  All code is provided under the New BSD license.
 //
 
 #import "BWSheetController.h"
 #import "NSWindow-NSTimeMachineSupport.h"
 
 @implementation BWSheetController
+
+@synthesize parentWindow, sheet, delegate;
 
 - (void)awakeFromNib
 {
