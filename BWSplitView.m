@@ -82,7 +82,7 @@ static float scaleFactor = 1.0f;
 		[self setMaxUnits:[decoder decodeObjectForKey:@"BWSVMaxUnits"]];
 		[self setCollapsiblePopupSelection:[decoder decodeIntForKey:@"BWSVCollapsiblePopupSelection"]];
 		[self setDividerCanCollapse:[decoder decodeBoolForKey:@"BWSVDividerCanCollapse"]];
-		
+        
 		// Delegate set in nib has been decoded, but we want that to be the secondary delegate
 		[self setDelegate:[super delegate]];
 		[super setDelegate:self];
@@ -226,11 +226,14 @@ static float scaleFactor = 1.0f;
 	return isCollapsibleSubview;
 }
 
-- (BOOL)subviewIsCollapsed:(NSView *)subview;
-{
-	BOOL isCollapsibleSubview = [self subviewIsCollapsible:subview];
-	
+- (BOOL)isSubviewCollapsed:(NSView *)subview {
+    BOOL isCollapsibleSubview = [self subviewIsCollapsible:subview];
 	return [super isSubviewCollapsed:subview] || (isCollapsibleSubview && collapsibleSubviewCollapsed);
+}
+
+- (BOOL)subviewIsCollapsed:(NSView *)subview;
+{    
+	return [self isSubviewCollapsed:subview];
 }
 
 - (BOOL)collapsibleSubviewIsCollapsed;
@@ -282,7 +285,7 @@ static float scaleFactor = 1.0f;
 
 - (void)animationEnded
 {
-	isAnimating = NO;
+    isAnimating = NO;
 }
 
 - (float)animationDuration
@@ -317,7 +320,7 @@ static float scaleFactor = 1.0f;
 - (void)setCollapsibleSubviewCollapsed:(BOOL)flag
 {
 	collapsibleSubviewCollapsed = flag;
-
+    
 	if (flag)
 		[[self toggleCollapseButton] setState:0];
 	else
@@ -338,7 +341,7 @@ static float scaleFactor = 1.0f;
 {
 	if ([self hasCollapsibleSubview])
 	{
-		NSMutableDictionary *tempMinValues = [[[self minValues] mutableCopy] autorelease];
+        NSMutableDictionary *tempMinValues = [[[self minValues] mutableCopy] autorelease];
 		[tempMinValues removeObjectForKey:[NSNumber numberWithInt:[[self subviews] indexOfObject:[self collapsibleSubview]]]];
 		[self setMinValues:tempMinValues];
 	}
@@ -398,7 +401,11 @@ static float scaleFactor = 1.0f;
 	if ([self hasCollapsibleDivider] == NO)
 		collapsibleDividerThickness = 0;
 	
-	
+    // When the collapsibleSubview has been collapsed by dragging the divider, it will be set hidden. It prevents it from uncollapsing again;
+    // in particular NSAnimationContext won't do anything, thus not animating the width back to it's desired width.
+    if ([[self collapsibleSubview] isHidden])
+        [[self collapsibleSubview] setHidden:NO];
+    
 	if ([self isVertical])
 	{
 		float constantHeight = [self collapsibleSubview].frame.size.height;
@@ -423,9 +430,9 @@ static float scaleFactor = 1.0f;
 		}
 		else
 		{
-			if (hasMinSize)
+            if (hasMinSize)
 				[self removeMinSizeForCollapsibleSubview];
-			
+            
 			[NSAnimationContext beginGrouping];
 			[[NSAnimationContext currentContext] setDuration:([self animationDuration])];
 			[[[self collapsibleSubview] animator] setFrameSize:NSMakeSize(uncollapsedSize, constantHeight)];
@@ -464,7 +471,7 @@ static float scaleFactor = 1.0f;
 		{
 			if (hasMinSize)
 				[self removeMinSizeForCollapsibleSubview];
-			
+            
 			[NSAnimationContext beginGrouping];
 			[[NSAnimationContext currentContext] setDuration:([self animationDuration])];
 			[[[self collapsibleSubview] animator] setFrameSize:NSMakeSize(constantWidth, uncollapsedSize)];
@@ -482,6 +489,134 @@ static float scaleFactor = 1.0f;
 	[self performSelector:@selector(animationEnded) withObject:nil afterDelay:[self animationDuration]];
 	
 	[self performSelector:@selector(resizeAndAdjustSubviews) withObject:nil afterDelay:[self animationDuration]];
+}
+
+- (IBAction)toggleCollapseWithoutAnimation:(id)sender {
+    if ([self respondsToSelector:@selector(ibDidAddToDesignableDocument:)])
+		return;
+	
+	if ([self hasCollapsibleSubview] == NO || [self collapsibleSubview] == nil)
+		return;
+	
+	if (isAnimating)
+		return;
+	
+	
+	// Check to see if the collapsible subview has a minimum width/height and record it.
+	// We'll later remove the min size temporarily while animating and then restore it.
+	BOOL hasMinSize = NO;
+	NSNumber *minSize = [minValues objectForKey:[NSNumber numberWithInt:[[self subviews] indexOfObject:[self collapsibleSubview]]]];
+	minSize = [[minSize copy] autorelease];
+	
+	if (minSize != nil || [minSize intValue] != 0)
+		hasMinSize = YES;
+	
+	
+	// Get a reference to the button and modify its behavior
+	if ([self toggleCollapseButton] == nil)
+	{
+		[self setToggleCollapseButton:sender];
+        
+		[[toggleCollapseButton cell] setHighlightsBy:NSPushInCellMask];
+		[[toggleCollapseButton cell] setShowsStateBy:NSContentsCellMask];
+	}
+	
+	
+	// Temporary: For simplicty, there should only be 1 subview other than the collapsible subview that's resizable for the collapse to happen
+	NSView *resizableSubview = nil;
+	
+	for (NSView *subview in [self subviews])
+	{
+		if ([self subviewIsResizable:subview] && subview != [self collapsibleSubview])
+		{
+			resizableSubview = subview;
+		}
+        
+	}
+	
+	if (resizableSubview == nil)
+		return;
+	
+	
+	// Get the thickness of the collapsible divider. If the divider cannot collapse, we set it to 0 so it doesn't affect our calculations.
+	float collapsibleDividerThickness = [self dividerThickness];
+	
+	if ([self hasCollapsibleDivider] == NO)
+		collapsibleDividerThickness = 0;
+    
+    // When the collapsibleSubview has been collapsed by dragging the divider, it will be set hidden. It prevents it from uncollapsing again;
+    // in particular NSAnimationContext won't do anything, thus not animating the width back to it's desired width.
+    if ([[self collapsibleSubview] isHidden])
+        [[self collapsibleSubview] setHidden:NO];
+    
+    if ([self isVertical])
+	{
+		float constantHeight = [self collapsibleSubview].frame.size.height;
+		
+		if ([self collapsibleSubviewCollapsed] == NO)
+		{
+			uncollapsedSize = [self collapsibleSubview].frame.size.width;
+			
+			if (hasMinSize)
+				[self removeMinSizeForCollapsibleSubview];
+			
+			[[self collapsibleSubview] setFrameSize:NSMakeSize(0.0, constantHeight)];
+			[resizableSubview setFrameSize:NSMakeSize(resizableSubview.frame.size.width + uncollapsedSize + collapsibleDividerThickness, constantHeight)];
+			
+			if (hasMinSize)
+				[self setMinSizeForCollapsibleSubview:minSize];
+			
+			[self setCollapsibleSubviewCollapsed:YES];
+		}
+		else
+		{
+            if (hasMinSize)
+				[self removeMinSizeForCollapsibleSubview];
+            
+			[[self collapsibleSubview] setFrameSize:NSMakeSize(uncollapsedSize, constantHeight)];
+			[resizableSubview setFrameSize:NSMakeSize(resizableSubview.frame.size.width - uncollapsedSize - collapsibleDividerThickness, constantHeight)];
+			
+			if (hasMinSize)
+				[self setMinSizeForCollapsibleSubview:minSize];
+			
+			[self setCollapsibleSubviewCollapsed:NO];
+		}
+	}
+	else
+	{
+		float constantWidth = [self collapsibleSubview].frame.size.width;
+		
+		if ([self collapsibleSubviewCollapsed] == NO)
+		{
+			uncollapsedSize = [self collapsibleSubview].frame.size.height;
+			
+			if (hasMinSize)
+				[self removeMinSizeForCollapsibleSubview];
+			
+			[[self collapsibleSubview] setFrameSize:NSMakeSize(constantWidth, 0.0)];
+			[resizableSubview setFrameSize:NSMakeSize(constantWidth, resizableSubview.frame.size.height + uncollapsedSize + collapsibleDividerThickness)];
+			
+			if (hasMinSize)
+				[self setMinSizeForCollapsibleSubview:minSize];
+			
+			[self setCollapsibleSubviewCollapsed:YES];
+		}
+		else
+		{
+			if (hasMinSize)
+				[self removeMinSizeForCollapsibleSubview];
+            
+			[[self collapsibleSubview] setFrameSize:NSMakeSize(constantWidth, uncollapsedSize)];
+			[resizableSubview setFrameSize:NSMakeSize(constantWidth, resizableSubview.frame.size.height - uncollapsedSize - collapsibleDividerThickness)];
+			
+			if (hasMinSize)
+				[self setMinSizeForCollapsibleSubview:minSize];
+			
+			[self setCollapsibleSubviewCollapsed:NO];
+		}
+	}
+    
+    [self resizeAndAdjustSubviews];
 }
 
 #pragma mark NSSplitView Delegate Methods
@@ -513,18 +648,18 @@ static float scaleFactor = 1.0f;
 
 - (BOOL)splitView:(NSSplitView *)sender canCollapseSubview:(NSView *)subview
 {
-	if ([secondaryDelegate respondsToSelector:@selector(splitView:canCollapseSubview:)])
-		return [secondaryDelegate splitView:sender canCollapseSubview:subview];
-	
-	int subviewIndex = [[self subviews] indexOfObject:subview];
-	
-	if ([self respondsToSelector:@selector(ibDidAddToDesignableDocument:)] == NO)
-	{
-		if ([self collapsiblePopupSelection] == 1 && subviewIndex == 0)
-			return YES;
-		else if ([self collapsiblePopupSelection] == 2 && subviewIndex == [[self subviews] count] - 1)
-			return YES;
-	}
+    if ([secondaryDelegate respondsToSelector:@selector(splitView:canCollapseSubview:)])
+     return [secondaryDelegate splitView:sender canCollapseSubview:subview];
+    
+    int subviewIndex = [[self subviews] indexOfObject:subview];
+    
+    if ([self respondsToSelector:@selector(ibDidAddToDesignableDocument:)] == NO)
+    {
+     if ([self collapsiblePopupSelection] == 1 && subviewIndex == 0)
+         return YES;
+     else if ([self collapsiblePopupSelection] == 2 && subviewIndex == [[self subviews] count] - 1)
+         return YES;
+    }
 	
 	return NO;
 }
@@ -662,23 +797,29 @@ static float scaleFactor = 1.0f;
 
 - (void)splitViewDidResizeSubviews:(NSNotification *)aNotification
 {
-	if (collapsibleSubviewCollapsed && ([self isVertical] ? [[self collapsibleSubview] frame].size.width > 0 : [[self collapsibleSubview] frame].size.height > 0))
+    if (collapsibleSubviewCollapsed && ([self isVertical] ? [[self collapsibleSubview] frame].size.width > 0 : [[self collapsibleSubview] frame].size.height > 0))
 	{
 		[self setCollapsibleSubviewCollapsed:NO];
 
 		[self resizeAndAdjustSubviews];
 	}
-	else if (!collapsibleSubviewCollapsed && ([self isVertical] ? [[self collapsibleSubview] frame].size.width < 0.1 : [[self collapsibleSubview] frame].size.height < 0.1))
+	else if (!collapsibleSubviewCollapsed && ([self isVertical] ? [[self collapsibleSubview] frame].size.width < 0.01 : [[self collapsibleSubview] frame].size.height < 0.01))
 	{
 		[self setCollapsibleSubviewCollapsed:YES];
-
+        
 		[self resizeAndAdjustSubviews];
-	}
+	} 
+    else if ([[self collapsibleSubview] isHidden]) {
+        // Once the divider has been dragged past 50% of the collapsable subview width, it's been set as hidden;
+        // trigger the normal collapse logic - otherwise we won't be able to drag-collapse and then uncollapse
+        // the first time (without having triggered toggleCollapse in any other way before) - it's a hack...
+        [self toggleCollapseWithoutAnimation:[self toggleCollapseButton]];
+    }
 	else if ([self collapsibleSubviewIsCollapsed])
-	{
-		[self resizeAndAdjustSubviews];
+	{        
+        [self resizeAndAdjustSubviews];
 	}
-	
+    
 	[self setNeedsDisplay:YES];
 }
 
@@ -699,10 +840,10 @@ static float scaleFactor = 1.0f;
 
 - (BOOL)subviewIsResizable:(NSView *)subview
 {
-	if ([self isVertical] && [subview autoresizingMask] & NSViewWidthSizable)
+	if ([self isVertical] && ([subview autoresizingMask] & NSViewWidthSizable))
 		return YES;
 	
-	if (![self isVertical] && [subview autoresizingMask] & NSViewHeightSizable)
+	if (![self isVertical] && ([subview autoresizingMask] & NSViewHeightSizable))
 		return YES;
 	
 	return NO;
@@ -797,11 +938,11 @@ static float scaleFactor = 1.0f;
 	
 	// Total is only the sum of resizable subviews
 	CGFloat resizableTotal = 0;
-	
+
 	// Calculate resizable total
 	for (NSView *subview in [self subviews])
 	{
-		if ([self subviewIsResizable:subview])
+        if ([self subviewIsResizable:subview])
 			resizableTotal += [self isVertical] ? [subview frame].size.width : [subview frame].size.height;
 	}
 	
@@ -812,9 +953,9 @@ static float scaleFactor = 1.0f;
 		
 		if ([self subviewIsResizable:subview])
 		{
-			CGFloat size = [self isVertical] ? [subview frame].size.width : [subview frame].size.height;
+            CGFloat size = [self isVertical] ? [subview frame].size.width : [subview frame].size.height;
 			CGFloat proportion = (resizableTotal > 0) ? (size / resizableTotal) : 0;
-			
+            
 			[preferredProportions setObject:[NSNumber numberWithFloat:proportion]
 									 forKey:[NSNumber numberWithInt:index]];
 			
@@ -822,7 +963,7 @@ static float scaleFactor = 1.0f;
 		}
 		else
 		{
-			CGFloat size = [self isVertical] ? [subview frame].size.width : [subview frame].size.height;
+            CGFloat size = [self isVertical] ? [subview frame].size.width : [subview frame].size.height;
 			
 			[preferredSizes setObject:[NSNumber numberWithFloat:size]
 							   forKey:[NSNumber numberWithInt:index]];
@@ -874,8 +1015,8 @@ static float scaleFactor = 1.0f;
 	if (![self hasCollapsibleSubview])
 		return;
 	
-	NSMutableDictionary *preferredProportions = [[[self resizableSubviewPreferredProportion] mutableCopy] autorelease];
-	NSMutableDictionary *preferredSizes = [[[self nonresizableSubviewPreferredSize] mutableCopy] autorelease];
+    NSMutableDictionary *preferredProportions = [[[self resizableSubviewPreferredProportion] mutableCopy] autorelease];
+    NSMutableDictionary *preferredSizes = [[[self nonresizableSubviewPreferredSize] mutableCopy] autorelease];
 	
 	NSNumber *key = [NSNumber numberWithInt:[self collapsibleSubviewIndex]];
 	NSView *subview = [self collapsibleSubview];
@@ -979,7 +1120,7 @@ static float scaleFactor = 1.0f;
 	[self validateAndCalculatePreferredProportionsAndSizes];
 	
 	if (RESIZE_DEBUG_LOGS) NSLog(@"resizeSubviews begins -----------------------------------------------------");
-	
+
 	NSMutableDictionary *newSubviewSizes = [NSMutableDictionary dictionaryWithCapacity:[[self subviews] count]];
 	
 	// Get new total size
@@ -1037,7 +1178,7 @@ static float scaleFactor = 1.0f;
 	// TODO: Could add a special case for resizableSubviewsTotalAvailableSize <= 0 : just set all resizable subviews to minimum size 
 	
 	// Make array of all the resizable subviews indexes
-	NSMutableArray *resizableSubviewIndexes = [[[resizableSubviewPreferredProportion allKeys] mutableCopy] autorelease];
+    NSMutableArray *resizableSubviewIndexes = [[[resizableSubviewPreferredProportion allKeys] mutableCopy] autorelease];
 	[resizableSubviewIndexes sortUsingDescriptors:[NSArray arrayWithObject:[[[NSSortDescriptor alloc] initWithKey:@"self" ascending:YES] autorelease]]];
 	
 	// Loop until none of the resizable subviews' constraints are violated
@@ -1143,7 +1284,7 @@ static float scaleFactor = 1.0f;
 		if (RESIZE_DEBUG_LOGS) NSLog(@"newSubviewSizes after nonresizable proportional resizing: %@", newSubviewSizes);
 		
 		// Make array of all the non-resizable subviews indexes
-		NSMutableArray *nonresizableSubviewIndexes = [[[nonresizableSubviewPreferredSize allKeys] mutableCopy] autorelease];
+        NSMutableArray *nonresizableSubviewIndexes = [[[nonresizableSubviewPreferredSize allKeys] mutableCopy] autorelease];
 		[nonresizableSubviewIndexes sortUsingDescriptors:[NSArray arrayWithObject:[[[NSSortDescriptor alloc] initWithKey:@"self" ascending:YES] autorelease]]];
 		
 		// Loop until none of the non-resizable subviews' constraints are violated

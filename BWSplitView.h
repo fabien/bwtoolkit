@@ -40,5 +40,6 @@
 
 // Call this method to collapse or expand a subview configured as collapsible in the IB inspector.
 - (IBAction)toggleCollapse:(id)sender;
+- (IBAction)toggleCollapseWithoutAnimation:(id)sender;
 
 @end
